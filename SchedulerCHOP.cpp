@@ -59,7 +59,7 @@ void SchedulerCHOP::execute(CHOP_Output* output, const OP_Inputs* inputs, void* 
     globalMode = inputs->getParInt("Globalmode");
     interval = inputs->getParDouble("Globalinterval");
 
-    const std::array<std::string, 7> days = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
+    const std::array<std::string, 7> days = { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" };
 
     // Récupérer l'heure et la date courantes
     std::time_t currentTime = std::time(nullptr);
@@ -69,51 +69,83 @@ void SchedulerCHOP::execute(CHOP_Output* output, const OP_Inputs* inputs, void* 
     int currentDay = localTime.tm_wday; // Jour actuel (0 = Dimanche)
     double currentSeconds = localTime.tm_hour * 3600 + localTime.tm_min * 60 + localTime.tm_sec;
 
+    // Correction du décalage des jours
+    const std::string currentDayName = days[(currentDay + 6) % 7];
+
+    // Désactiver/activer les paramètres des jours selon le mode
+    for (const auto& day : days)
+    {
+        inputs->enablePar((day + "enable").c_str(), !globalMode);
+        inputs->enablePar((day + "starthour").c_str(), !globalMode);
+        inputs->enablePar((day + "startminute").c_str(), !globalMode);
+        inputs->enablePar((day + "startsecond").c_str(), !globalMode);
+        inputs->enablePar((day + "endhour").c_str(), !globalMode);
+        inputs->enablePar((day + "endminute").c_str(), !globalMode);
+        inputs->enablePar((day + "endsecond").c_str(), !globalMode);
+        inputs->enablePar((day + "interval").c_str(), !globalMode);
+    }
+
     bool isActiveDay = false;
     double startSeconds = 0.0, endSeconds = 0.0;
+    double dayInterval = interval; // Intervalle à utiliser
 
     if (globalMode)
     {
         // Mode global
-        startSeconds = inputs->getParInt("Globalstarthour") * 3600 +
-            inputs->getParInt("Globalstartminute") * 60 +
-            inputs->getParInt("Globalstartsecond");
+        double globalStartHour = inputs->getParDouble("Globalstarthour");
+        double globalStartMinute = inputs->getParDouble("Globalstartminute");
+        double globalStartSecond = inputs->getParDouble("Globalstartsecond");
 
-        endSeconds = inputs->getParInt("Globalendhour") * 3600 +
-            inputs->getParInt("Globalendminute") * 60 +
-            inputs->getParInt("Globalendsecond");
+        double globalEndHour = inputs->getParDouble("Globalendhour");
+        double globalEndMinute = inputs->getParDouble("Globalendminute");
+        double globalEndSecond = inputs->getParDouble("Globalendsecond");
+
+        startSeconds = globalStartHour * 3600 + globalStartMinute * 60 + globalStartSecond;
+        endSeconds = globalEndHour * 3600 + globalEndMinute * 60 + globalEndSecond;
 
         isActiveDay = true; // Toujours actif en mode global
     }
     else
     {
         // Mode spécifique au jour
-        const std::string currentDayName = days[(currentDay + 6) % 7];
-
-
         if (inputs->getParInt((currentDayName + "enable").c_str()))
         {
-            startSeconds = inputs->getParInt((currentDayName + "starthour").c_str()) * 3600 +
-                inputs->getParInt((currentDayName + "startminute").c_str()) * 60 +
-                inputs->getParInt((currentDayName + "startsecond").c_str());
+            double dayStartHour = inputs->getParDouble((currentDayName + "starthour").c_str());
+            double dayStartMinute = inputs->getParDouble((currentDayName + "startminute").c_str());
+            double dayStartSecond = inputs->getParDouble((currentDayName + "startsecond").c_str());
 
-            endSeconds = inputs->getParInt((currentDayName + "endhour").c_str()) * 3600 +
-                inputs->getParInt((currentDayName + "endminute").c_str()) * 60 +
-                inputs->getParInt((currentDayName + "endsecond").c_str());
+            double dayEndHour = inputs->getParDouble((currentDayName + "endhour").c_str());
+            double dayEndMinute = inputs->getParDouble((currentDayName + "endminute").c_str());
+            double dayEndSecond = inputs->getParDouble((currentDayName + "endsecond").c_str());
 
+            startSeconds = dayStartHour * 3600 + dayStartMinute * 60 + dayStartSecond;
+            endSeconds = dayEndHour * 3600 + dayEndMinute * 60 + dayEndSecond;
+
+            dayInterval = inputs->getParDouble((currentDayName + "interval").c_str());
             isActiveDay = true;
         }
     }
 
     // Vérification de la plage horaire active
-    bool isInTimeRange = (currentSeconds >= startSeconds && currentSeconds <= endSeconds);
+    bool isInTimeRange = false;
+
+    if (startSeconds <= endSeconds)
+    {
+        // Plage normale (dans la même journée)
+        isInTimeRange = (currentSeconds >= startSeconds && currentSeconds <= endSeconds);
+    }
+    else
+    {
+        // Plage traversant minuit
+        isInTimeRange = (currentSeconds >= startSeconds || currentSeconds <= endSeconds);
+    }
 
     // Gestion de l'intervalle
     float triggerValue = 0.0f;
 
     if (isActiveDay && isInTimeRange)
     {
-        if (interval == 0.0)
+        if (dayInterval == 0.0)
         {
             // Si l'intervalle est 0, déclenche et reste à 1
             triggerValue = 1.0f;
@@ -122,7 +154,12 @@ void SchedulerCHOP::execute(CHOP_Output* output, const OP_Inputs* inputs, void* 
         {
             // Basé sur l'intervalle
             double elapsed = currentSeconds - startSeconds;
-            if (std::fmod(elapsed, interval) < 1.0 && currentSeconds != lastTriggerTime)
+            if (elapsed < 0)
+            {
+                elapsed += 24 * 3600; // Correction si traversant minuit
+            }
+
+            if (std::fmod(elapsed, dayInterval) < 1.0 && currentSeconds != lastTriggerTime)
             {
                 triggerValue = 1.0f;
                 lastTriggerTime = currentSeconds;
@@ -177,7 +214,7 @@ void SchedulerCHOP::setupParameters(OP_ParameterManager* manager, void* reserved
     manager->appendFloat(np);
 
     // Paramètres par jour
-    const std::array<std::string, 7> days = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
+    const std::array<std::string, 7> days = { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" };
 
     for (const auto& day : days)
     {
@@ -210,5 +247,9 @@ void SchedulerCHOP::setupParameters(OP_ParameterManager* manager, void* reserved
         np.name = (day + "endsecond").c_str();
         np.label = "End Second";
         manager->appendInt(np);
+
+        np.name = (day + "interval").c_str();
+        np.label = "Interval";
+        manager->appendFloat(np);
     }
 }
