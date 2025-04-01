@@ -33,7 +33,7 @@
    - Clone or download this repository.
 
 2. **Locate the DLL File**:
-   - Inside the repository folder, find the file named `SchedulerCHOP.dll` in the `DLL` folder.
+   - Find the file named `SchedulerCHOP.dll`.
 
 3. **Place the DLL in the Plugins Folder**:
    - Move the `SchedulerCHOP.dll` file to the following directory:
