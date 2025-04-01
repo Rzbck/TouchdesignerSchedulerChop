@@ -1,8 +1,0 @@
-﻿C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppBuild.targets(531,5): warning MSB8028: Le répertoire intermédiaire (Release\) contient des fichiers partagés provenant d'un autre projet (CPlusPlusCHOPExample.vcxproj). Cela peut entraîner un comportement de nettoyage et de regénération incorrect.
-  SchedulerCHOP.cpp
-     Création de la bibliothèque F:\TouchDesigner\Samples\CPlusPlus\SchedulerCHOP\Release\SchedulerCHOP.lib et de l'objet F:\TouchDesigner\Samples\CPlusPlus\SchedulerCHOP\Release\SchedulerCHOP.exp
-  Génération de code en cours
-  Previous IPDB not found, fall back to full compilation.
-  All 130 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
-  Fin de la génération du code
-  CPlusPlusCHOPExample.vcxproj -> F:\TouchDesigner\Samples\CPlusPlus\SchedulerCHOP\Release\SchedulerCHOP.dll
